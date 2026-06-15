@@ -1,0 +1,16 @@
+{
+  "name": "bolaodogeo-sync",
+  "version": "1.0.0",
+  "description": "Sincroniza jogos/placares da Copa 2026 (football-data.org) para o Firestore do BOLÃO DO GEO",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node sync.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

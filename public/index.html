@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b6e4f" />
+  <title>BOLÃO DO GEO</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🏆 BOLÃO DO GEO</div>
+    <nav id="mainNav" class="nav hidden">
+      <button class="tab-btn active" data-tab="palpites">Palpites</button>
+      <button class="tab-btn" data-tab="real">Copa do Mundo</button>
+      <button class="tab-btn" data-tab="ranking">Ranking</button>
+      <button class="tab-btn hidden" id="adminTabBtn" data-tab="admin">Admin</button>
+    </nav>
+    <div id="userBox" class="user-box hidden">
+      <span id="userName"></span>
+      <button id="logoutBtn" class="ghost">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ===== LOGIN / CADASTRO ===== -->
+    <section id="authView" class="view auth">
+      <div class="card auth-card">
+        <h1 class="auth-title">🏆 BOLÃO DO GEO</h1>
+        <p class="auth-sub">Palpite nos jogos da Copa 2026 e dispute o ranking.</p>
+
+        <div id="authError" class="error hidden"></div>
+
+        <form id="loginForm" class="auth-box" autocomplete="on">
+          <div id="loginBox">
+            <label>E-mail
+              <input name="email" type="email" required placeholder="voce@email.com" />
+            </label>
+            <label>Senha
+              <input name="password" type="password" required placeholder="••••••" />
+            </label>
+            <button type="submit" class="primary">Entrar</button>
+            <p class="switch">Não tem conta? <a href="#" id="toSignup">Criar conta</a></p>
+          </div>
+        </form>
+
+        <form id="signupForm" class="auth-box" autocomplete="on">
+          <div id="signupBox" class="hidden">
+            <label>Nome (aparece no ranking)
+              <input name="displayName" type="text" required placeholder="Seu nome" />
+            </label>
+            <label>E-mail
+              <input name="email" type="email" required placeholder="voce@email.com" />
+            </label>
+            <label>Senha (mín. 6 caracteres)
+              <input name="password" type="password" required placeholder="••••••" />
+            </label>
+            <button type="submit" class="primary">Cadastrar</button>
+            <p class="switch">Já tem conta? <a href="#" id="toLogin">Entrar</a></p>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ===== APP ===== -->
+    <section id="palpitesView" class="view hidden"></section>
+    <section id="realView" class="view hidden"></section>
+    <section id="rankingView" class="view hidden"></section>
+    <section id="adminView" class="view hidden"></section>
+  </main>
+
+  <footer class="foot">
+    <span>Dados dos jogos: football-data.org · Bolão pessoal</span>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# dependências
+node_modules/
+
+# segredos — NUNCA versionar
+serviceAccount.json
+*serviceAccount*.json
+.env
+.env.*
+
+# logs / lixo
+*.log
+.DS_Store
+.firebase/

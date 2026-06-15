@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Perfis: leitura por logados (para exibir nomes no ranking).
+    match /users/{uid} {
+      allow read: if signedIn();
+      // cria o próprio doc e NÃO pode se auto-promover a admin
+      allow create: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.isAdmin == false;
+      // atualiza o próprio doc sem mexer no isAdmin
+      allow update: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.isAdmin == resource.data.isAdmin;
+      allow delete: if false;
+    }
+
+    // Jogos: todos os logados leem. Escrita só por admin.
+    // (O sincronizador usa o Admin SDK, que ignora estas regras — ok.)
+    match /matches/{matchId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // Palpites: leitura por logados (o ranking precisa somar todos).
+    // Criação: só o dono, dados válidos, em QUALQUER jogo (inclusive os que já
+    // aconteceram — os palpites foram feitos antes, no papel).
+    // Write-once: depois de enviado NÃO pode editar nem apagar.
+    match /predictions/{predId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.auth.uid == request.resource.data.uid
+        && predId == request.auth.uid + '_' + request.resource.data.matchId
+        && request.resource.data.keys().hasOnly(['uid', 'matchId', 'homeScore', 'awayScore', 'updatedAt'])
+        && request.resource.data.homeScore is int && request.resource.data.homeScore >= 0 && request.resource.data.homeScore <= 99
+        && request.resource.data.awayScore is int && request.resource.data.awayScore >= 0 && request.resource.data.awayScore <= 99
+        // jogos de abertura têm palpite bloqueado (México x Áf. do Sul / Coreia x Tcheca)
+        && !(request.resource.data.matchId in ['537327', '537328']);
+      allow update, delete: if false;
+    }
+
+    // Palpites do mata-mata PREVISTO (chaveamento montado a partir dos palpites
+    // de grupo do próprio usuário). Mesma lógica write-once dos palpites de grupo.
+    match /koPredictions/{predId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.auth.uid == request.resource.data.uid
+        && predId == request.auth.uid + '_' + request.resource.data.matchNum
+        && request.resource.data.keys().hasOnly(['uid', 'matchNum', 'homeScore', 'awayScore', 'winner', 'updatedAt'])
+        && request.resource.data.matchNum is int && request.resource.data.matchNum >= 73 && request.resource.data.matchNum <= 104
+        && request.resource.data.homeScore is int && request.resource.data.homeScore >= 0 && request.resource.data.homeScore <= 99
+        && request.resource.data.awayScore is int && request.resource.data.awayScore >= 0 && request.resource.data.awayScore <= 99
+        && request.resource.data.winner in ['home', 'away'];
+      allow update, delete: if false;
+    }
+  }
+}
