@@ -3,7 +3,7 @@ import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initAuthForms, logout } from './auth.js';
-import { renderMatches } from './matches.js';
+import { renderGroups, renderKnockout } from './matches.js';
 import { renderReal } from './real.js';
 import { renderRanking } from './ranking.js';
 import { renderAdmin } from './admin.js';
@@ -19,7 +19,7 @@ const userBox     = document.getElementById('userBox');
 const userName    = document.getElementById('userName');
 const adminTabBtn = document.getElementById('adminTabBtn');
 
-const VIEWS = ['palpitesView', 'realView', 'rankingView', 'adminView'];
+const VIEWS = ['gruposView', 'mataView', 'realView', 'rankingView', 'adminView'];
 
 document.getElementById('logoutBtn').addEventListener('click', () => logout());
 document.querySelectorAll('.tab-btn').forEach(btn =>
@@ -49,17 +49,18 @@ onAuthStateChanged(auth, async (user) => {
   nav.classList.remove('hidden');
   userBox.classList.remove('hidden');
   adminTabBtn.classList.toggle('hidden', !isAdmin);
-  setTab('palpites');
+  setTab('grupos');
 });
 
 function setTab(tab) {
-  if (tab === 'admin' && !isAdmin) tab = 'palpites';
+  if (tab === 'admin' && !isAdmin) tab = 'grupos';
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   hideAllViews();
-  if (tab === 'palpites') { const v = show('palpitesView'); renderMatches(v, currentUser); }
-  if (tab === 'real')     { const v = show('realView');     renderReal(v); }
-  if (tab === 'ranking')  { const v = show('rankingView');  renderRanking(v, currentUser.uid); }
-  if (tab === 'admin')    { const v = show('adminView');    renderAdmin(v); }
+  if (tab === 'grupos')  { const v = show('gruposView');  renderGroups(v, currentUser); }
+  if (tab === 'mata')    { const v = show('mataView');    renderKnockout(v, currentUser); }
+  if (tab === 'real')    { const v = show('realView');    renderReal(v); }
+  if (tab === 'ranking') { const v = show('rankingView'); renderRanking(v, currentUser.uid); }
+  if (tab === 'admin')   { const v = show('adminView');   renderAdmin(v); }
 }
 
 function show(id) { const v = document.getElementById(id); v.classList.remove('hidden'); return v; }
