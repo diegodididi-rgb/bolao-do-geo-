@@ -2,8 +2,8 @@ name: Sincronizar placares
 
 on:
   schedule:
-    # a cada 10 minutos (horário UTC). O GitHub pode atrasar alguns minutos sob carga.
-    - cron: "*/10 * * * *"
+    # 4x ao dia (horário UTC) = 00h, 06h, 12h, 18h UTC -> 21h, 03h, 09h, 15h em Brasília.
+    - cron: "0 */6 * * *"
   workflow_dispatch: {}   # permite rodar manualmente pelo botão "Run workflow"
 
 jobs:
