@@ -52,7 +52,7 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if signedIn()
         && request.auth.uid == request.resource.data.uid
-        && predId == request.auth.uid + '_' + request.resource.data.matchNum
+        && predId == request.auth.uid + '_' + string(request.resource.data.matchNum)
         && request.resource.data.keys().hasOnly(['uid', 'matchNum', 'homeScore', 'awayScore', 'winner', 'updatedAt'])
         && request.resource.data.matchNum is int && request.resource.data.matchNum >= 73 && request.resource.data.matchNum <= 104
         && request.resource.data.homeScore is int && request.resource.data.homeScore >= 0 && request.resource.data.homeScore <= 99
