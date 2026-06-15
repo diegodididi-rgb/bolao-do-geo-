@@ -4,6 +4,7 @@
 //
 // Notação dos códigos de "slot": '1A' = 1º do Grupo A, '2B' = 2º do Grupo B,
 // '3:74' = melhor 3º colocado encaixado no jogo 74 (ver THIRD_SLOTS).
+import { THIRD_PLACE_TABLE } from './thirdPlaceTable.js';
 
 // 16-avos de final (jogos 73-88)
 export const R32_FIXTURES = [
@@ -93,7 +94,7 @@ export function resolveR32(standings, thirds) {
   }
 
   const qualified = thirds.slice(0, 8).map(t => gKey(t.group));
-  const slotAssign = assignThirdSlots(qualified); // matchNum -> group
+  const slotAssign = lookupThirdSlots(qualified); // matchNum -> grupo (tabela oficial FIFA)
 
   const resolved = new Map();
   for (const fx of R32_FIXTURES) {
@@ -119,29 +120,17 @@ function resolveCode(code, firsts, seconds, thirdTeam, slotAssign) {
   return null;
 }
 
-// Encaixa os 8 grupos qualificados (3ºs colocados) nos 8 slots THIRD_SLOTS,
-// respeitando "o grupo precisa estar no conjunto permitido do slot" e usando
-// cada grupo uma única vez (busca com backtracking, slot mais restrito primeiro).
-function assignThirdSlots(qualifiedGroups) {
-  const slots = Object.entries(THIRD_SLOTS).map(([match, set]) => ({ match: Number(match), set }));
-  const result = backtrack(slots, qualifiedGroups);
-  return result || {};
-}
-
-function backtrack(slots, groups) {
-  if (!slots.length) return {};
-  let bestIdx = 0, bestCands = null;
-  for (let i = 0; i < slots.length; i++) {
-    const cands = groups.filter(g => slots[i].set.includes(g));
-    if (bestCands === null || cands.length < bestCands.length) { bestIdx = i; bestCands = cands; }
-  }
-  const slot = slots[bestIdx];
-  const rest = slots.filter((_, i) => i !== bestIdx);
-  for (const g of bestCands) {
-    const sub = backtrack(rest, groups.filter(x => x !== g));
-    if (sub) { sub[slot.match] = g; return sub; }
-  }
-  return null;
+// Encaixa os 8 grupos qualificados (3ºs colocados) nos 8 slots usando a TABELA
+// OFICIAL da FIFA (Anexo C, ver thirdPlaceTable.js) — mesma do simulador do GE.
+// Devolve { nº do jogo : letra do grupo }. Se faltar combinação (ex.: <8 grupos),
+// devolve {} (os slots ficam indefinidos).
+function lookupThirdSlots(qualifiedGroups) {
+  const key = [...new Set(qualifiedGroups)].sort().join('');
+  const row = THIRD_PLACE_TABLE[key];
+  if (!row) return {};
+  const out = {};
+  for (const m in row) out[Number(m)] = row[m];
+  return out;
 }
 
 // Monta o chaveamento COMPLETO previsto (jogos 73-104) a partir das classificações
