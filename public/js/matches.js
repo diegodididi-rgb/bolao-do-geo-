@@ -208,11 +208,13 @@ function koCard(matchNum, teams, pred, teamCrest, onSave, thirdTeams, usedThirds
   const vh = hasPred ? pred.home : '';
   const va = hasPred ? pred.away : '';
 
-  // monta o "lado visitante": time fixo OU lista suspensa de 3ºs (quando editável)
+  // monta o "lado visitante": time fixo OU lista suspensa de 3ºs (quando editável).
+  // Lista TODOS os 3ºs colocados (o GE não respeita o conjunto restrito da FIFA),
+  // excluindo os já usados em outros jogos.
   let awayInner;
   if (isThirdSlot && !hasPred) {
     const opts = ['<option value="">— escolha o 3º —</option>'];
-    for (const g of [...thirdGroups].sort()) {
+    for (const g of Object.keys(thirdTeams).sort()) {
       const t = thirdTeams[g];
       if (!t) continue;
       if (usedThirds.has(g)) continue;       // já usado em outro jogo
