@@ -11,7 +11,7 @@ import { translateTeam } from './teams.js';
 
 // Jogos de abertura — palpite BLOQUEADO (ids da football-data):
 // 537327 = México x África do Sul · 537328 = Coreia do Sul x R. Tcheca
-const BLOCKED = new Set(['537327', '537328']);
+export const BLOCKED = new Set(['537327', '537328']);
 
 const KO_ROUND_ORDER = ['R32', 'R16', 'QF', 'SF', '3RD', 'FINAL'];
 
@@ -57,9 +57,12 @@ export async function renderMatches(container, user) {
   for (const m of groupMatches) sec.appendChild(matchCard(m, preds.get(m.id), user, refresh));
   container.appendChild(sec);
 
-  // Mata-mata previsto: montado a partir dos palpites de grupo do usuário
-  const done = groupMatches.filter(m => preds.get(m.id)).length;
-  const total = groupMatches.length;
+  // Mata-mata previsto: montado a partir dos palpites de grupo do usuário.
+  // Os jogos de abertura (BLOCKED) não entram na conta — não dá para palpitar
+  // neles; no chaveamento eles usam o resultado REAL (já aconteceram).
+  const palpitaveis = groupMatches.filter(m => !BLOCKED.has(m.id));
+  const done = palpitaveis.filter(m => preds.get(m.id)).length;
+  const total = palpitaveis.length;
   if (done < total) {
     const ko = document.createElement('section');
     ko.className = 'stage';
@@ -73,8 +76,11 @@ export async function renderMatches(container, user) {
 }
 
 function renderKoBracket(container, groupMatches, preds, koPreds, teamCrest, user, refresh) {
-  // monta os jogos de grupo com os PALPITES do usuário (não o resultado real)
+  // monta os jogos de grupo com os PALPITES do usuário (não o resultado real).
+  // Exceção: jogos de abertura (BLOCKED) usam o resultado REAL, pois já
+  // aconteceram e não há palpite para eles.
   const predictedGroupMatches = groupMatches.map(m => {
+    if (BLOCKED.has(m.id)) return { ...m }; // já traz homeScore/awayScore reais do sync
     const p = preds.get(m.id);
     return { ...m, homeScore: p ? p.home : null, awayScore: p ? p.away : null };
   });

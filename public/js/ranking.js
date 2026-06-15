@@ -11,6 +11,7 @@ import { db } from './firebase-config.js';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { computeGroupStandings, rankThirdPlaced } from './standings.js';
 import { resolveFullBracket, MATCH_STAGE } from './bracket.js';
+import { BLOCKED } from './matches.js';
 
 export async function renderRanking(container, currentUid) {
   container.innerHTML = '<p class="loading">Calculando ranking…</p>';
@@ -81,6 +82,10 @@ export async function renderRanking(container, currentUid) {
 
     const gp = groupPredsByUid.get(uid) || new Map();
     const predictedGroupMatches = groupMeta.map(m => {
+      // jogos de abertura usam o resultado REAL (não há palpite para eles)
+      if (BLOCKED.has(m.id)) {
+        return { group: m.group, homeTeam: m.homeTeam, awayTeam: m.awayTeam, homeScore: m.homeScore, awayScore: m.awayScore };
+      }
       const p = gp.get(m.id);
       return { group: m.group, homeTeam: m.homeTeam, awayTeam: m.awayTeam, homeScore: p ? p.home : null, awayScore: p ? p.away : null };
     });
