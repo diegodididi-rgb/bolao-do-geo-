@@ -2,8 +2,8 @@ name: Sincronizar placares
 
 on:
   schedule:
-    # 4x ao dia (horário UTC) = 00h, 06h, 12h, 18h UTC -> 21h, 03h, 09h, 15h em Brasília.
-    - cron: "0 */6 * * *"
+    # 16h, 19h, 22h e 00h em Brasília (UTC-3) = 19h, 22h, 01h, 03h UTC.
+    - cron: "0 19,22,1,3 * * *"
   workflow_dispatch: {}   # permite rodar manualmente pelo botão "Run workflow"
 
 jobs:
