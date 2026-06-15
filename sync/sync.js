@@ -28,6 +28,14 @@ function mapStatus(s) {
   return 'scheduled';
 }
 
+// quem avançou no confronto (importa no mata-mata, p/ empates decididos nos
+// pênaltis): HOME_TEAM -> 'home', AWAY_TEAM -> 'away', resto -> null.
+function mapWinner(w) {
+  if (w === 'HOME_TEAM') return 'home';
+  if (w === 'AWAY_TEAM') return 'away';
+  return null;
+}
+
 async function main() {
   const res = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
     headers: { 'X-Auth-Token': TOKEN }
@@ -64,6 +72,7 @@ async function main() {
       data.status    = mapStatus(m.status);
       data.homeScore = m.score?.fullTime?.home ?? null;
       data.awayScore = m.score?.fullTime?.away ?? null;
+      data.winner    = mapWinner(m.score?.winner); // 'home' | 'away' | null
     }
     batch.set(db.collection('matches').doc(id), data, { merge: true });
     ops++; total++;

@@ -6,7 +6,7 @@ import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/fir
 import { loadUserPredictions, savePrediction } from './predictions.js';
 import { loadUserKoPredictions, saveKoPrediction } from './koPredictions.js';
 import { computeGroupStandings, rankThirdPlaced } from './standings.js';
-import { R32_FIXTURES, KO_TREE, ROUND_LABELS, resolveR32 } from './bracket.js';
+import { R32_FIXTURES, KO_TREE, ROUND_LABELS, resolveFullBracket } from './bracket.js';
 import { translateTeam } from './teams.js';
 
 // Jogos de abertura — palpite BLOQUEADO (ids da football-data):
@@ -80,14 +80,7 @@ function renderKoBracket(container, groupMatches, preds, koPreds, teamCrest, use
   });
   const standings = computeGroupStandings(predictedGroupMatches);
   const thirds = rankThirdPlaced(standings);
-  const resolved = resolveR32(standings, thirds); // Map matchNum(73-88) -> {home, away}
-
-  for (const node of KO_TREE) {
-    resolved.set(node.match, {
-      home: resolveRef(node.home, resolved, koPreds),
-      away: resolveRef(node.away, resolved, koPreds),
-    });
-  }
+  const resolved = resolveFullBracket(standings, thirds, koPreds); // Map matchNum(73-104) -> {home, away}
 
   const byRound = new Map();
   for (const fx of R32_FIXTURES) addToRound(byRound, 'R32', fx.match);
@@ -114,18 +107,6 @@ function renderKoBracket(container, groupMatches, preds, koPreds, teamCrest, use
 function addToRound(byRound, round, matchNum) {
   if (!byRound.has(round)) byRound.set(round, []);
   byRound.get(round).push(matchNum);
-}
-
-// Resolve o nome do time vencedor/perdedor de outro jogo do chaveamento,
-// a partir do palpite (write-once) que o usuário já salvou para aquele jogo.
-function resolveRef(ref, resolved, koPreds) {
-  const refMatch = ref.w ?? ref.l;
-  const teams = resolved.get(refMatch);
-  const pred = koPreds.get(refMatch);
-  if (!teams || !pred || !teams.home || !teams.away) return null;
-  const winnerSide = pred.winner === 'home' ? 'home' : 'away';
-  const side = ref.l ? (winnerSide === 'home' ? 'away' : 'home') : winnerSide;
-  return teams[side];
 }
 
 function matchCard(m, pred, user, refresh) {

@@ -68,6 +68,18 @@ export const ROUND_LABELS = {
   FINAL: 'Final',
 };
 
+// Mapa nº do jogo (73-104) -> stage da football-data (p/ casar com a Copa real).
+const ROUND_TO_STAGE = {
+  R32: 'LAST_32', R16: 'LAST_16', QF: 'QUARTER_FINALS',
+  SF: 'SEMI_FINALS', '3RD': 'THIRD_PLACE', FINAL: 'FINAL',
+};
+export const MATCH_STAGE = (() => {
+  const m = {};
+  for (const fx of R32_FIXTURES) m[fx.match] = 'LAST_32';
+  for (const node of KO_TREE) m[node.match] = ROUND_TO_STAGE[node.round];
+  return m;
+})();
+
 // Dadas as classificações de grupo (Map de standings.js) e a lista ordenada dos
 // melhores 3ºs colocados (rankThirdPlaced), monta o encaixe dos 16-avos:
 // devolve Map(matchNum -> { home: nomeDoTime|null, away: nomeDoTime|null }).
@@ -126,4 +138,32 @@ function backtrack(slots, groups) {
     if (sub) { sub[slot.match] = g; return sub; }
   }
   return null;
+}
+
+// Monta o chaveamento COMPLETO previsto (jogos 73-104) a partir das classificações
+// de grupo previstas + dos palpites de mata-mata do usuário (koPreds: Map matchNum
+// -> { home, away, winner }). Devolve Map(matchNum -> { home, away }) com os nomes
+// dos times; slots ainda indefinidos vêm com null. Usado tanto na tela de Palpites
+// quanto no cálculo do Ranking.
+export function resolveFullBracket(standings, thirds, koPreds) {
+  const resolved = resolveR32(standings, thirds);
+  for (const node of KO_TREE) {
+    resolved.set(node.match, {
+      home: resolveRef(node.home, resolved, koPreds),
+      away: resolveRef(node.away, resolved, koPreds),
+    });
+  }
+  return resolved;
+}
+
+// Resolve o nome do time vencedor/perdedor de outro jogo do chaveamento, a partir
+// do palpite (write-once) que o usuário salvou para aquele jogo.
+function resolveRef(ref, resolved, koPreds) {
+  const refMatch = ref.w ?? ref.l;
+  const teams = resolved.get(refMatch);
+  const pred = koPreds.get(refMatch);
+  if (!teams || !pred || !teams.home || !teams.away) return null;
+  const winnerSide = pred.winner === 'home' ? 'home' : 'away';
+  const side = ref.l ? (winnerSide === 'home' ? 'away' : 'home') : winnerSide;
+  return teams[side];
 }
