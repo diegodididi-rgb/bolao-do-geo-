@@ -86,12 +86,13 @@ export const MATCH_STAGE = (() => {
 export function resolveR32(standings, thirds) {
   const firsts = new Map(), seconds = new Map(), thirdTeam = new Map();
   for (const [g, rows] of standings) {
-    if (rows[0]) firsts.set(g, rows[0].team);
-    if (rows[1]) seconds.set(g, rows[1].team);
-    if (rows[2]) thirdTeam.set(g, rows[2].team);
+    const key = gKey(g); // normaliza 'GROUP_A' -> 'A'
+    if (rows[0]) firsts.set(key, rows[0].team);
+    if (rows[1]) seconds.set(key, rows[1].team);
+    if (rows[2]) thirdTeam.set(key, rows[2].team);
   }
 
-  const qualified = thirds.slice(0, 8).map(t => t.group);
+  const qualified = thirds.slice(0, 8).map(t => gKey(t.group));
   const slotAssign = assignThirdSlots(qualified); // matchNum -> group
 
   const resolved = new Map();
@@ -103,6 +104,9 @@ export function resolveR32(standings, thirds) {
   }
   return resolved;
 }
+
+// normaliza a chave do grupo: 'GROUP_A' -> 'A' (e mantém 'A' como 'A')
+function gKey(g) { return String(g).replace('GROUP_', ''); }
 
 function resolveCode(code, firsts, seconds, thirdTeam, slotAssign) {
   if (code.startsWith('3:')) {
