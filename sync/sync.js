@@ -16,8 +16,8 @@ if (!TOKEN) { console.error('Falta FOOTBALL_DATA_TOKEN'); process.exit(1); }
 if (!SA)    { console.error('Falta FIREBASE_SERVICE_ACCOUNT'); process.exit(1); }
 
 let serviceAccount;
-try { serviceAccount = JSON.parse(SA); }
-catch (e) { console.error('FIREBASE_SERVICE_ACCOUNT não é um JSON válido.'); process.exit(1); }
+try { serviceAccount = JSON.parse(SA.trim().replace(/^﻿/, '')); }
+catch (e) { console.error('FIREBASE_SERVICE_ACCOUNT não é um JSON válido:', e.message); process.exit(1); }
 
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
