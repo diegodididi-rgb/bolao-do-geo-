@@ -9,7 +9,7 @@
 //   Se o palpite criou um confronto que não existiu naquela fase -> sem ponto.
 import { db } from './firebase-config.js';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { computeGroupStandings, rankThirdPlaced } from './standings.js';
+import { computeGroupStandings } from './standings.js';
 import { resolveFullBracket, MATCH_STAGE } from './bracket.js';
 import { BLOCKED } from './matches.js';
 
@@ -90,8 +90,7 @@ export async function renderRanking(container, currentUid) {
       return { group: m.group, homeTeam: m.homeTeam, awayTeam: m.awayTeam, homeScore: p ? p.home : null, awayScore: p ? p.away : null };
     });
     const standings = computeGroupStandings(predictedGroupMatches);
-    const thirds = rankThirdPlaced(standings);
-    const resolved = resolveFullBracket(standings, thirds, kp);
+    const resolved = resolveFullBracket(standings, kp);
 
     for (const [matchNum, pred] of kp) {
       const teams = resolved.get(matchNum);

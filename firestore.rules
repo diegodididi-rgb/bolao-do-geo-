@@ -53,11 +53,13 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.auth.uid == request.resource.data.uid
         && predId == request.auth.uid + '_' + string(request.resource.data.matchNum)
-        && request.resource.data.keys().hasOnly(['uid', 'matchNum', 'homeScore', 'awayScore', 'winner', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['uid', 'matchNum', 'homeScore', 'awayScore', 'winner', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'matchNum', 'homeScore', 'awayScore', 'winner', 'thirdGroup', 'updatedAt'])
         && request.resource.data.matchNum is int && request.resource.data.matchNum >= 73 && request.resource.data.matchNum <= 104
         && request.resource.data.homeScore is int && request.resource.data.homeScore >= 0 && request.resource.data.homeScore <= 99
         && request.resource.data.awayScore is int && request.resource.data.awayScore >= 0 && request.resource.data.awayScore <= 99
-        && request.resource.data.winner in ['home', 'away'];
+        && request.resource.data.winner in ['home', 'away']
+        && (!('thirdGroup' in request.resource.data) || (request.resource.data.thirdGroup is string && request.resource.data.thirdGroup.size() == 1));
       allow update, delete: if false;
     }
   }

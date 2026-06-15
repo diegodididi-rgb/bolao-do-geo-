@@ -5,8 +5,8 @@ import { db } from './firebase-config.js';
 import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { loadUserPredictions, savePrediction } from './predictions.js';
 import { loadUserKoPredictions, saveKoPrediction } from './koPredictions.js';
-import { computeGroupStandings, rankThirdPlaced } from './standings.js';
-import { ROUND_LABELS, resolveFullBracket } from './bracket.js';
+import { computeGroupStandings } from './standings.js';
+import { ROUND_LABELS, resolveFullBracket, thirdByGroup, THIRD_SLOTS } from './bracket.js';
 import { translateTeam } from './teams.js';
 
 // Jogos de abertura — palpite BLOQUEADO (ids da football-data):
@@ -125,79 +125,112 @@ function renderKoBracket(container, groupMatches, preds, koPreds, teamCrest, use
     return { ...m, homeScore: p ? p.home : null, awayScore: p ? p.away : null };
   });
   const standings = computeGroupStandings(predictedGroupMatches);
-  const thirds = rankThirdPlaced(standings);
-  const resolved = resolveFullBracket(standings, thirds, koPreds); // Map matchNum(73-104) -> {home, away}
+  const resolved = resolveFullBracket(standings, koPreds); // Map matchNum(73-104) -> {home, away}
+  const thirdTeams = thirdByGroup(standings);              // letra do grupo -> nome do 3º colocado
 
   const intro = document.createElement('p');
   intro.className = 'hint top-note';
-  intro.innerHTML = '🏆 Este é o <b>seu chaveamento</b>, montado a partir dos seus palpites de grupo. Palpite o placar de cada confronto (também <b>definitivo</b>) para avançar seu time. <span class="nowrap">↔ arraste para os lados</span> para ver o chaveamento inteiro.';
+  intro.innerHTML = '🏆 Monte aqui o <b>seu mata-mata</b> como você fez no papel. Os mandantes (1º/2º dos grupos) já vêm dos seus palpites; nos jogos com <b>3º colocado</b>, escolha o time na <b>lista</b>. Depois preencha o placar e salve (também <b>definitivo</b>). <span class="nowrap">↔ arraste para os lados</span> para ver o chaveamento inteiro.';
   container.appendChild(intro);
 
-  const onSave = async (matchNum, h, a, winner) => {
-    await saveKoPrediction(user.uid, matchNum, h, a, winner);
+  const onSave = async (matchNum, h, a, winner, thirdGroup) => {
+    await saveKoPrediction(user.uid, matchNum, h, a, winner, thirdGroup);
     await refresh();
   };
-  container.appendChild(buildKoBracket(resolved, koPreds, teamCrest, onSave));
+  container.appendChild(buildKoBracket(resolved, koPreds, teamCrest, onSave, thirdTeams));
 }
 
 // Monta o chaveamento visual (esquerda → final ← direita) seguindo a ordem do PDF.
-// onSave(matchNum, h, a, winner) -> Promise. Exportado para teste visual.
-export function buildKoBracket(resolved, koPreds, teamCrest, onSave) {
+// onSave(matchNum, h, a, winner, thirdGroup?) -> Promise. Exportado para teste visual.
+export function buildKoBracket(resolved, koPreds, teamCrest, onSave, thirdTeams = {}) {
+  // terceiros já escolhidos em outros jogos (p/ não repetir na lista)
+  const usedThirds = new Set();
+  for (const [n, p] of koPreds) if (p && p.thirdGroup) usedThirds.add(p.thirdGroup);
+
+  const card = (n) => koCard(n, resolved.get(n), koPreds.get(n), teamCrest, onSave, thirdTeams, usedThirds);
+
   const scroll = el('div', 'kobracket-scroll');
   const bracket = el('div', 'kobracket');
 
   const left = el('div', 'kob-side left');
-  for (const r of BR_LEFT_ORDER) left.appendChild(roundCol(r, BR_LEFT[r], resolved, koPreds, teamCrest, onSave));
+  for (const r of BR_LEFT_ORDER) left.appendChild(roundCol(r, BR_LEFT[r], card));
   bracket.appendChild(left);
 
   const center = el('div', 'kob-center');
   center.appendChild(centerLabel('🏆 Final'));
-  center.appendChild(koCard(104, resolved.get(104), koPreds.get(104), teamCrest, onSave));
+  center.appendChild(card(104));
   center.appendChild(centerLabel('3º lugar'));
-  center.appendChild(koCard(103, resolved.get(103), koPreds.get(103), teamCrest, onSave));
+  center.appendChild(card(103));
   bracket.appendChild(center);
 
   const right = el('div', 'kob-side right');
-  for (const r of BR_RIGHT_ORDER) right.appendChild(roundCol(r, BR_RIGHT[r], resolved, koPreds, teamCrest, onSave));
+  for (const r of BR_RIGHT_ORDER) right.appendChild(roundCol(r, BR_RIGHT[r], card));
   bracket.appendChild(right);
 
   scroll.appendChild(bracket);
   return scroll;
 }
 
-function roundCol(round, nums, resolved, koPreds, teamCrest, onSave) {
+function roundCol(round, nums, card) {
   const col = el('div', 'kob-round');
   const head = el('div', 'kob-round-head');
   head.textContent = ROUND_LABELS[round];
   col.appendChild(head);
   const body = el('div', 'kob-col');
-  for (const n of nums) body.appendChild(koCard(n, resolved.get(n), koPreds.get(n), teamCrest, onSave));
+  for (const n of nums) body.appendChild(card(n));
   col.appendChild(body);
   return col;
 }
 
 // Card compacto de um confronto do chaveamento previsto (jogos 73-104).
-function koCard(matchNum, teams, pred, teamCrest, onSave) {
+// Nos jogos de 16-avos que recebem um 3º colocado (THIRD_SLOTS), o time visitante
+// é ESCOLHIDO pelo usuário numa lista suspensa (dentre os 3ºs dos grupos permitidos).
+function koCard(matchNum, teams, pred, teamCrest, onSave, thirdTeams, usedThirds) {
   const card = el('div', 'kob-match');
-  if (!teams || !teams.home || !teams.away) {
+  const hasPred = pred != null;
+  const thirdGroups = THIRD_SLOTS[matchNum];        // grupos permitidos p/ o 3º (ou undefined)
+  const isThirdSlot = !!thirdGroups;
+  const home = teams ? teams.home : null;
+  let away = teams ? teams.away : null;
+
+  // mandante indefinido (depende de jogos anteriores) -> aguardando
+  if (!home) {
+    card.innerHTML = `<div class="kob-wait">🔒 aguardando<br>confrontos anteriores</div>`;
+    return card;
+  }
+  // confronto normal (sem 3º) ainda sem o visitante definido -> aguardando
+  if (!isThirdSlot && !away) {
     card.innerHTML = `<div class="kob-wait">🔒 aguardando<br>confrontos anteriores</div>`;
     return card;
   }
 
-  const { home, away } = teams;
-  const hasPred = pred != null;
   const advSide = hasPred ? (pred.winner === 'home' ? 'home' : 'away') : null;
   const vh = hasPred ? pred.home : '';
   const va = hasPred ? pred.away : '';
 
+  // monta o "lado visitante": time fixo OU lista suspensa de 3ºs (quando editável)
+  let awayInner;
+  if (isThirdSlot && !hasPred) {
+    const opts = ['<option value="">— escolha o 3º —</option>'];
+    for (const g of [...thirdGroups].sort()) {
+      const t = thirdTeams[g];
+      if (!t) continue;
+      if (usedThirds.has(g)) continue;       // já usado em outro jogo
+      opts.push(`<option value="${g}">${esc(translateTeam(t))} (3º ${g})</option>`);
+    }
+    awayInner = `<select class="kob-third">${opts.join('')}</select>`;
+  } else {
+    awayInner = `${crest(teamCrest.get(away))}<span class="nm">${esc(translateTeam(away))}</span>`;
+  }
+
   card.innerHTML = `
     <div class="kob-row home ${advSide === 'home' ? 'adv' : ''}" data-side="home">
       <span class="kob-team">${crest(teamCrest.get(home))}<span class="nm">${esc(translateTeam(home))}</span></span>
-      <input type="number" min="0" inputmode="numeric" class="kob-sc home" value="${vh}" ${hasPred ? 'disabled' : ''} aria-label="gols ${esc(translateTeam(home))}" />
+      <input type="number" min="0" inputmode="numeric" class="kob-sc home" value="${vh}" ${hasPred ? 'disabled' : ''} aria-label="gols mandante" />
     </div>
     <div class="kob-row away ${advSide === 'away' ? 'adv' : ''}" data-side="away">
-      <span class="kob-team">${crest(teamCrest.get(away))}<span class="nm">${esc(translateTeam(away))}</span></span>
-      <input type="number" min="0" inputmode="numeric" class="kob-sc away" value="${va}" ${hasPred ? 'disabled' : ''} aria-label="gols ${esc(translateTeam(away))}" />
+      <span class="kob-team">${awayInner}</span>
+      <input type="number" min="0" inputmode="numeric" class="kob-sc away" value="${va}" ${hasPred ? 'disabled' : ''} aria-label="gols visitante" />
     </div>
     <div class="kob-foot">${hasPred ? '<span class="kob-status">✓ definitivo</span>' : '<button class="kob-save">Salvar</button>'}</div>`;
 
@@ -207,6 +240,7 @@ function koCard(matchNum, teams, pred, teamCrest, onSave) {
     const rowA = card.querySelector('.kob-row.away');
     const scH  = card.querySelector('.kob-sc.home');
     const scA  = card.querySelector('.kob-sc.away');
+    const sel  = card.querySelector('.kob-third');
     let pick = null; // escolha manual de quem avança (usada só em empate)
 
     const setAdv = (side) => {
@@ -222,20 +256,23 @@ function koCard(matchNum, teams, pred, teamCrest, onSave) {
       setAdv(pick); // empate ou incompleto -> escolha manual
     };
     rowH.addEventListener('click', e => { if (e.target === scH) return; pick = 'home'; refreshAdv(); });
-    rowA.addEventListener('click', e => { if (e.target === scA) return; pick = 'away'; refreshAdv(); });
+    rowA.addEventListener('click', e => { if (e.target === scA || e.target === sel) return; pick = 'away'; refreshAdv(); });
     scH.addEventListener('input', refreshAdv);
     scA.addEventListener('input', refreshAdv);
 
     card.querySelector('.kob-save').addEventListener('click', async (ev) => {
       const btn = ev.currentTarget;
+      const thirdGroup = sel ? sel.value : null;
+      if (isThirdSlot && !thirdGroup) { alert('Escolha o 3º colocado deste confronto na lista.'); return; }
+      const awayName = isThirdSlot ? thirdTeams[thirdGroup] : away;
       const h = parseInt(scH.value, 10), a = parseInt(scA.value, 10);
       if (Number.isNaN(h) || Number.isNaN(a) || h < 0 || a < 0) { alert('Preencha os dois placares com números ≥ 0.'); return; }
       const winner = h > a ? 'home' : (a > h ? 'away' : pick);
       if (!winner) { alert('Empate: toque no time que você acha que avança nos pênaltis.'); return; }
-      const winnerName = winner === 'home' ? home : away;
-      if (!confirm(`Confirmar palpite:\n\n${translateTeam(home)} ${h} x ${a} ${translateTeam(away)}\nAvança: ${translateTeam(winnerName)}\n\n⚠️ Depois de salvar NÃO dá para editar.`)) return;
+      const winnerName = winner === 'home' ? home : awayName;
+      if (!confirm(`Confirmar palpite:\n\n${translateTeam(home)} ${h} x ${a} ${translateTeam(awayName)}\nAvança: ${translateTeam(winnerName)}\n\n⚠️ Depois de salvar NÃO dá para editar.`)) return;
       btn.disabled = true; btn.textContent = 'Salvando…';
-      try { await onSave(matchNum, h, a, winner); }
+      try { await onSave(matchNum, h, a, winner, isThirdSlot ? thirdGroup : null); }
       catch (e) { alert('Não foi possível salvar este palpite.'); btn.disabled = false; btn.textContent = 'Salvar'; }
     });
   }

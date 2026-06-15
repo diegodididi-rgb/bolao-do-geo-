@@ -3,8 +3,8 @@
 // quanto, no futuro, para o chaveamento REAL.
 //
 // Notação dos códigos de "slot": '1A' = 1º do Grupo A, '2B' = 2º do Grupo B,
-// '3:74' = melhor 3º colocado encaixado no jogo 74 (ver THIRD_SLOTS).
-import { THIRD_PLACE_TABLE } from './thirdPlaceTable.js';
+// '3:74' = 3º colocado ESCOLHIDO pelo usuário para o jogo 74 (dentre os grupos
+// permitidos em THIRD_SLOTS[74]). A escolha fica salva em koPreds[74].thirdGroup.
 
 // 16-avos de final (jogos 73-88)
 export const R32_FIXTURES = [
@@ -81,10 +81,11 @@ export const MATCH_STAGE = (() => {
   return m;
 })();
 
-// Dadas as classificações de grupo (Map de standings.js) e a lista ordenada dos
-// melhores 3ºs colocados (rankThirdPlaced), monta o encaixe dos 16-avos:
-// devolve Map(matchNum -> { home: nomeDoTime|null, away: nomeDoTime|null }).
-export function resolveR32(standings, thirds) {
+// Dadas as classificações de grupo (Map de standings.js) e os palpites de mata-mata
+// do usuário (koPreds), monta o encaixe dos 16-avos. Mandantes 1º/2º vêm das
+// classificações; o 3º colocado de cada jogo é o que o usuário escolheu.
+// Devolve Map(matchNum -> { home: nomeDoTime|null, away: nomeDoTime|null }).
+export function resolveR32(standings, koPreds) {
   const firsts = new Map(), seconds = new Map(), thirdTeam = new Map();
   for (const [g, rows] of standings) {
     const key = gKey(g); // normaliza 'GROUP_A' -> 'A'
@@ -93,14 +94,11 @@ export function resolveR32(standings, thirds) {
     if (rows[2]) thirdTeam.set(key, rows[2].team);
   }
 
-  const qualified = thirds.slice(0, 8).map(t => gKey(t.group));
-  const slotAssign = lookupThirdSlots(qualified); // matchNum -> grupo (tabela oficial FIFA)
-
   const resolved = new Map();
   for (const fx of R32_FIXTURES) {
     resolved.set(fx.match, {
-      home: resolveCode(fx.home, firsts, seconds, thirdTeam, slotAssign),
-      away: resolveCode(fx.away, firsts, seconds, thirdTeam, slotAssign),
+      home: resolveCode(fx.home, firsts, seconds, thirdTeam, koPreds, fx.match),
+      away: resolveCode(fx.away, firsts, seconds, thirdTeam, koPreds, fx.match),
     });
   }
   return resolved;
@@ -109,9 +107,18 @@ export function resolveR32(standings, thirds) {
 // normaliza a chave do grupo: 'GROUP_A' -> 'A' (e mantém 'A' como 'A')
 function gKey(g) { return String(g).replace('GROUP_', ''); }
 
-function resolveCode(code, firsts, seconds, thirdTeam, slotAssign) {
+// 3º colocado de cada grupo (letra do grupo -> nome do time), a partir das standings.
+export function thirdByGroup(standings) {
+  const m = {};
+  for (const [g, rows] of standings) if (rows[2]) m[gKey(g)] = rows[2].team;
+  return m;
+}
+
+function resolveCode(code, firsts, seconds, thirdTeam, koPreds, matchNum) {
   if (code.startsWith('3:')) {
-    const g = slotAssign[Number(code.slice(2))];
+    // 3º colocado ESCOLHIDO pelo usuário para este jogo (koPreds[matchNum].thirdGroup)
+    const pred = koPreds && koPreds.get(matchNum);
+    const g = pred && pred.thirdGroup;
     return g ? (thirdTeam.get(g) || null) : null;
   }
   const pos = code[0], g = code[1];
@@ -120,26 +127,13 @@ function resolveCode(code, firsts, seconds, thirdTeam, slotAssign) {
   return null;
 }
 
-// Encaixa os 8 grupos qualificados (3ºs colocados) nos 8 slots usando a TABELA
-// OFICIAL da FIFA (Anexo C, ver thirdPlaceTable.js) — mesma do simulador do GE.
-// Devolve { nº do jogo : letra do grupo }. Se faltar combinação (ex.: <8 grupos),
-// devolve {} (os slots ficam indefinidos).
-function lookupThirdSlots(qualifiedGroups) {
-  const key = [...new Set(qualifiedGroups)].sort().join('');
-  const row = THIRD_PLACE_TABLE[key];
-  if (!row) return {};
-  const out = {};
-  for (const m in row) out[Number(m)] = row[m];
-  return out;
-}
-
 // Monta o chaveamento COMPLETO previsto (jogos 73-104) a partir das classificações
 // de grupo previstas + dos palpites de mata-mata do usuário (koPreds: Map matchNum
-// -> { home, away, winner }). Devolve Map(matchNum -> { home, away }) com os nomes
-// dos times; slots ainda indefinidos vêm com null. Usado tanto na tela de Palpites
-// quanto no cálculo do Ranking.
-export function resolveFullBracket(standings, thirds, koPreds) {
-  const resolved = resolveR32(standings, thirds);
+// -> { home, away, winner, thirdGroup? }). Para os jogos com 3º colocado, o time é
+// o que o usuário escolheu (thirdGroup). Devolve Map(matchNum -> { home, away }) com
+// os nomes dos times; slots ainda indefinidos vêm com null.
+export function resolveFullBracket(standings, koPreds) {
+  const resolved = resolveR32(standings, koPreds);
   for (const node of KO_TREE) {
     resolved.set(node.match, {
       home: resolveRef(node.home, resolved, koPreds),
