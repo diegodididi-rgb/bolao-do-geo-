@@ -116,7 +116,7 @@ main { max-width: 720px; margin: 0 auto; padding: 1rem; }
 .kob-row .crest { width: 18px; height: 18px; flex: none; }
 .kob-row.adv { background: #e4f6ec; }
 .kob-row.adv .kob-team { color: var(--green-dark); font-weight: 800; }
-.kob-third { width: 100%; min-width: 0; padding: .18rem .2rem; border: 1px solid var(--green); border-radius: 5px; font-size: .72rem; background: #fff; }
+.kob-third, .kob-pick { width: 100%; min-width: 0; padding: .18rem .2rem; border: 1px solid var(--green); border-radius: 5px; font-size: .72rem; background: #fff; }
 .kob-sc { width: 32px; padding: .2rem; text-align: center; border: 1px solid var(--line); border-radius: 5px; font-size: .85rem; flex: none; }
 .kob-sc:disabled { background: #f0f2f4; color: var(--ink); }
 .kob-foot { margin-top: .25rem; display: flex; justify-content: flex-end; align-items: center; min-height: 1.15rem; }

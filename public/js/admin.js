@@ -4,9 +4,7 @@ import {
   collection, getDocs, query, orderBy, doc, updateDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { translateTeam } from './teams.js';
-import { computeGroupStandings } from './standings.js';
 import { resolveFullBracket, ROUND_LABELS, MATCH_STAGE } from './bracket.js';
-import { BLOCKED } from './matches.js';
 
 const STAGE_TO_ROUND = {
   LAST_32: 'R32', LAST_16: 'R16', QUARTER_FINALS: 'QF',
@@ -92,11 +90,11 @@ function buildPredictionsViewer(matchList, usersSnap, predsSnap, koSnap) {
     if (!groupByUid.has(p.uid)) groupByUid.set(p.uid, new Map());
     groupByUid.get(p.uid).set(p.matchId, { home: p.homeScore, away: p.awayScore });
   });
-  const koByUid = new Map();      // uid -> Map(matchNum -> {home,away,winner,thirdGroup})
+  const koByUid = new Map();      // uid -> Map(matchNum -> {home,away,winner,homeTeam,awayTeam})
   koSnap.forEach(d => {
     const p = d.data();
     if (!koByUid.has(p.uid)) koByUid.set(p.uid, new Map());
-    koByUid.get(p.uid).set(p.matchNum, { home: p.homeScore, away: p.awayScore, winner: p.winner, thirdGroup: p.thirdGroup });
+    koByUid.get(p.uid).set(p.matchNum, { home: p.homeScore, away: p.awayScore, winner: p.winner, homeTeam: p.homeTeam, awayTeam: p.awayTeam });
   });
 
   const groupMatches = matchList.filter(m => m.stage === 'GROUP_STAGE');
@@ -163,13 +161,7 @@ function renderUserPredictions(out, { groupMatches, finished, gp, kp }) {
     return;
   }
   // reconstrói o bracket dele (igual à aba Palpites Mata-mata)
-  const predicted = groupMatches.map(m => {
-    if (BLOCKED.has(m.id)) return { ...m };
-    const p = gp.get(m.id);
-    return { ...m, homeScore: p ? p.home : null, awayScore: p ? p.away : null };
-  });
-  const standings = computeGroupStandings(predicted);
-  const resolved = resolveFullBracket(standings, kp);
+  const resolved = resolveFullBracket(kp);
 
   const nums = [...kp.keys()].sort((a, b) => a - b);
   let lastRound = '';

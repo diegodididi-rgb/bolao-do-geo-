@@ -1,43 +1,22 @@
-// Estrutura oficial do mata-mata da Copa 2026 (16-avos até a final, jogos 73-104).
-// Usada tanto para montar o chaveamento PREVISTO (a partir dos palpites de grupo)
-// quanto, no futuro, para o chaveamento REAL.
+// Estrutura do mata-mata da Copa 2026 (16-avos até a final, jogos 73-104).
 //
-// Notação dos códigos de "slot": '1A' = 1º do Grupo A, '2B' = 2º do Grupo B,
-// '3:74' = 3º colocado ESCOLHIDO pelo usuário para o jogo 74 (dentre os grupos
-// permitidos em THIRD_SLOTS[74]). A escolha fica salva em koPreds[74].thirdGroup.
+// Os 16-avos (73-88) são montados pelo PRÓPRIO usuário: ele escolhe os dois
+// times de cada confronto numa lista (caixa de seleção) com as 48 seleções,
+// reproduzindo o chaveamento que fez no papel. A escolha fica salva em
+// koPreds[n].homeTeam / koPreds[n].awayTeam. As fases seguintes (89-104) saem
+// em cascata, a partir de quem o usuário marca como vencedor de cada jogo.
 
-// 16-avos de final (jogos 73-88)
+// Lista dos jogos de 16-avos (apenas os números importam — os times vêm da
+// escolha do usuário, não mais das classificações de grupo).
 export const R32_FIXTURES = [
-  { match: 73, home: '2A',  away: '2B' },
-  { match: 74, home: '1E',  away: '3:74' },
-  { match: 75, home: '1F',  away: '2C' },
-  { match: 76, home: '1C',  away: '2F' },
-  { match: 77, home: '1I',  away: '3:77' },
-  { match: 78, home: '2E',  away: '2I' },
-  { match: 79, home: '1A',  away: '3:79' },
-  { match: 80, home: '1L',  away: '3:80' },
-  { match: 81, home: '1D',  away: '3:81' },
-  { match: 82, home: '1G',  away: '3:82' },
-  { match: 83, home: '2K',  away: '2L' },
-  { match: 84, home: '1H',  away: '2J' },
-  { match: 85, home: '1B',  away: '3:85' },
-  { match: 86, home: '1J',  away: '2H' },
-  { match: 87, home: '1K',  away: '3:87' },
-  { match: 88, home: '2D',  away: '2G' },
+  { match: 73 }, { match: 74 }, { match: 75 }, { match: 76 },
+  { match: 77 }, { match: 78 }, { match: 79 }, { match: 80 },
+  { match: 81 }, { match: 82 }, { match: 83 }, { match: 84 },
+  { match: 85 }, { match: 86 }, { match: 87 }, { match: 88 },
 ];
 
-// Para cada jogo de 16-avos que recebe um "melhor 3º colocado", o conjunto de
-// grupos dos quais aquele 3º pode vir (regra oficial FIFA, Anexo C).
-export const THIRD_SLOTS = {
-  74: ['A', 'B', 'C', 'D', 'F'],
-  77: ['C', 'D', 'F', 'G', 'H'],
-  79: ['C', 'E', 'F', 'H', 'I'],
-  80: ['E', 'H', 'I', 'J', 'K'],
-  81: ['B', 'E', 'F', 'I', 'J'],
-  82: ['A', 'E', 'H', 'I', 'J'],
-  85: ['E', 'F', 'G', 'I', 'J'],
-  87: ['D', 'E', 'I', 'J', 'L'],
-};
+// Conjunto dos números de jogo dos 16-avos (para detectar a 1ª rodada).
+export const R32_MATCHES = new Set(R32_FIXTURES.map(f => f.match));
 
 // Oitavas (89-96), quartas (97-100), semis (101-102), 3º lugar (103) e final (104).
 // home/away referenciam o vencedor (w) ou perdedor (l) de outro jogo do chaveamento.
@@ -81,59 +60,18 @@ export const MATCH_STAGE = (() => {
   return m;
 })();
 
-// Dadas as classificações de grupo (Map de standings.js) e os palpites de mata-mata
-// do usuário (koPreds), monta o encaixe dos 16-avos. Mandantes 1º/2º vêm das
-// classificações; o 3º colocado de cada jogo é o que o usuário escolheu.
-// Devolve Map(matchNum -> { home: nomeDoTime|null, away: nomeDoTime|null }).
-export function resolveR32(standings, koPreds) {
-  const firsts = new Map(), seconds = new Map(), thirdTeam = new Map();
-  for (const [g, rows] of standings) {
-    const key = gKey(g); // normaliza 'GROUP_A' -> 'A'
-    if (rows[0]) firsts.set(key, rows[0].team);
-    if (rows[1]) seconds.set(key, rows[1].team);
-    if (rows[2]) thirdTeam.set(key, rows[2].team);
-  }
-
+// Monta o chaveamento COMPLETO previsto (jogos 73-104) a partir dos palpites de
+// mata-mata do usuário (koPreds: Map matchNum -> { home, away, winner, homeTeam?,
+// awayTeam? }). Nos 16-avos (73-88) os dois times são os que o usuário ESCOLHEU
+// nas listas (homeTeam/awayTeam); das oitavas em diante (89-104), os times saem
+// em cascata, a partir de quem o usuário marcou como vencedor de cada jogo.
+// Devolve Map(matchNum -> { home, away }); slots ainda indefinidos vêm com null.
+export function resolveFullBracket(koPreds) {
   const resolved = new Map();
   for (const fx of R32_FIXTURES) {
-    resolved.set(fx.match, {
-      home: resolveCode(fx.home, firsts, seconds, thirdTeam, koPreds, fx.match),
-      away: resolveCode(fx.away, firsts, seconds, thirdTeam, koPreds, fx.match),
-    });
+    const p = koPreds.get(fx.match);
+    resolved.set(fx.match, { home: p?.homeTeam ?? null, away: p?.awayTeam ?? null });
   }
-  return resolved;
-}
-
-// normaliza a chave do grupo: 'GROUP_A' -> 'A' (e mantém 'A' como 'A')
-function gKey(g) { return String(g).replace('GROUP_', ''); }
-
-// 3º colocado de cada grupo (letra do grupo -> nome do time), a partir das standings.
-export function thirdByGroup(standings) {
-  const m = {};
-  for (const [g, rows] of standings) if (rows[2]) m[gKey(g)] = rows[2].team;
-  return m;
-}
-
-function resolveCode(code, firsts, seconds, thirdTeam, koPreds, matchNum) {
-  if (code.startsWith('3:')) {
-    // 3º colocado ESCOLHIDO pelo usuário para este jogo (koPreds[matchNum].thirdGroup)
-    const pred = koPreds && koPreds.get(matchNum);
-    const g = pred && pred.thirdGroup;
-    return g ? (thirdTeam.get(g) || null) : null;
-  }
-  const pos = code[0], g = code[1];
-  if (pos === '1') return firsts.get(g) || null;
-  if (pos === '2') return seconds.get(g) || null;
-  return null;
-}
-
-// Monta o chaveamento COMPLETO previsto (jogos 73-104) a partir das classificações
-// de grupo previstas + dos palpites de mata-mata do usuário (koPreds: Map matchNum
-// -> { home, away, winner, thirdGroup? }). Para os jogos com 3º colocado, o time é
-// o que o usuário escolheu (thirdGroup). Devolve Map(matchNum -> { home, away }) com
-// os nomes dos times; slots ainda indefinidos vêm com null.
-export function resolveFullBracket(standings, koPreds) {
-  const resolved = resolveR32(standings, koPreds);
   for (const node of KO_TREE) {
     resolved.set(node.match, {
       home: resolveRef(node.home, resolved, koPreds),

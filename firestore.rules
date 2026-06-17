@@ -29,6 +29,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Ranking pré-calculado pelo sincronizador (1 doc: rankings/current).
+    // Logados leem; ninguém escreve pelo client (só o Admin SDK do sync).
+    match /rankings/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
     // Palpites: leitura por logados (o ranking precisa somar todos).
     // Criação: só o dono, dados válidos, em QUALQUER jogo (inclusive os que já
     // aconteceram — os palpites foram feitos antes, no papel).
@@ -46,20 +53,22 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Palpites do mata-mata PREVISTO (chaveamento montado a partir dos palpites
-    // de grupo do próprio usuário). Mesma lógica write-once dos palpites de grupo.
+    // Palpites do mata-mata (chaveamento montado pelo próprio usuário). Nos
+    // 16-avos ele escolhe as duas seleções (homeTeam/awayTeam); das oitavas em
+    // diante os times saem em cascata. Write-once, como os palpites de grupo.
     match /koPredictions/{predId} {
       allow read: if signedIn();
       allow create: if signedIn()
         && request.auth.uid == request.resource.data.uid
         && predId == request.auth.uid + '_' + string(request.resource.data.matchNum)
         && request.resource.data.keys().hasAll(['uid', 'matchNum', 'homeScore', 'awayScore', 'winner', 'updatedAt'])
-        && request.resource.data.keys().hasOnly(['uid', 'matchNum', 'homeScore', 'awayScore', 'winner', 'thirdGroup', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'matchNum', 'homeScore', 'awayScore', 'winner', 'homeTeam', 'awayTeam', 'updatedAt'])
         && request.resource.data.matchNum is int && request.resource.data.matchNum >= 73 && request.resource.data.matchNum <= 104
         && request.resource.data.homeScore is int && request.resource.data.homeScore >= 0 && request.resource.data.homeScore <= 99
         && request.resource.data.awayScore is int && request.resource.data.awayScore >= 0 && request.resource.data.awayScore <= 99
         && request.resource.data.winner in ['home', 'away']
-        && (!('thirdGroup' in request.resource.data) || (request.resource.data.thirdGroup is string && request.resource.data.thirdGroup.size() == 1));
+        && (!('homeTeam' in request.resource.data) || (request.resource.data.homeTeam is string && request.resource.data.homeTeam.size() > 0 && request.resource.data.homeTeam.size() <= 60))
+        && (!('awayTeam' in request.resource.data) || (request.resource.data.awayTeam is string && request.resource.data.awayTeam.size() > 0 && request.resource.data.awayTeam.size() <= 60));
       allow update, delete: if false;
     }
   }

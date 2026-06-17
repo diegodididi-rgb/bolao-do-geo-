@@ -105,6 +105,38 @@ async function main() {
   if (ops) await batch.commit();
 
   console.log(`OK: ${total} jogos gravados/atualizados | ${fixed.size} override(s) preservado(s).`);
+
+  await recomputeRanking();
+}
+
+// Recalcula o ranking e salva num ÚNICO doc (rankings/current). Assim o app lê
+// 1 documento por abertura, em vez de varrer todas as coleções (economia enorme
+// de leituras no plano gratuito). Reusa o cálculo puro de scoring.js.
+async function recomputeRanking() {
+  try {
+    const { computeRanking } = await import(new URL('../public/js/scoring.js', import.meta.url).href);
+    const [usersSnap, matchesSnap, predsSnap, koSnap] = await Promise.all([
+      db.collection('users').get(),
+      db.collection('matches').get(),
+      db.collection('predictions').get(),
+      db.collection('koPredictions').get(),
+    ]);
+    const usersArr = [];   usersSnap.forEach(d => usersArr.push({ uid: d.id, displayName: d.get('displayName') }));
+    const matchesArr = []; matchesSnap.forEach(d => matchesArr.push({ id: d.id, ...d.data() }));
+    const predsArr = [];   predsSnap.forEach(d => predsArr.push(d.data()));
+    const koArr = [];      koSnap.forEach(d => koArr.push(d.data()));
+
+    const rows = computeRanking(usersArr, matchesArr, predsArr, koArr);
+    await db.collection('rankings').doc('current').set({
+      rows,
+      count: rows.length,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    console.log(`Ranking recalculado e salvo: ${rows.length} participante(s).`);
+  } catch (e) {
+    // não falha o sync inteiro só porque o ranking não pôde ser recalculado
+    console.error('Aviso: não foi possível recalcular o ranking:', e.message);
+  }
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });
