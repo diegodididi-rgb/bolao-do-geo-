@@ -36,15 +36,39 @@ function mapWinner(w) {
   return null;
 }
 
-async function main() {
-  const res = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
-    headers: { 'X-Auth-Token': TOKEN }
-  });
-  if (!res.ok) {
-    console.error('football-data', res.status, await res.text());
-    process.exit(1);
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// Busca os jogos com algumas tentativas: a football-data.org às vezes derruba a
+// conexão (UND_ERR_SOCKET "other side closed") ou responde 429/5xx. Em vez de
+// falhar o sync inteiro na 1ª falha de rede, tenta de novo com espera crescente.
+async function fetchMatches(attempts = 4) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const res = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
+        headers: { 'X-Auth-Token': TOKEN },
+        signal: AbortSignal.timeout(30000), // 30s por tentativa
+      });
+      if (res.status === 429 || res.status >= 500) {
+        throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      }
+      if (!res.ok) { // 4xx (ex.: token inválido) -> não adianta repetir
+        console.error('football-data', res.status, await res.text());
+        process.exit(1);
+      }
+      return await res.json();
+    } catch (e) {
+      lastErr = e;
+      const cause = e.cause?.code || e.name || e.message;
+      console.warn(`Tentativa ${i}/${attempts} falhou (${cause}).`);
+      if (i < attempts) await sleep(2000 * i); // 2s, 4s, 6s…
+    }
   }
-  const { matches } = await res.json();
+  throw lastErr;
+}
+
+async function main() {
+  const { matches } = await fetchMatches();
   console.log('Jogos recebidos da API:', matches.length);
 
   // jogos com correção manual fixada -> não sobrescrever placar/status
