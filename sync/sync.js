@@ -121,8 +121,9 @@ async function recomputeRanking() {
       db.collection('predictions').get(),
       db.collection('koPredictions').get(),
     ]);
-    const usersArr = [];   usersSnap.forEach(d => usersArr.push({ uid: d.id, displayName: d.get('displayName') }));
-    const matchesArr = []; matchesSnap.forEach(d => matchesArr.push({ id: d.id, ...d.data() }));
+    const ms = (t) => (t && typeof t.toMillis === 'function') ? t.toMillis() : null;
+    const usersArr = [];   usersSnap.forEach(d => usersArr.push({ uid: d.id, displayName: d.get('displayName'), scoreFromMs: ms(d.get('scoreFrom')) }));
+    const matchesArr = []; matchesSnap.forEach(d => { const x = d.data(); matchesArr.push({ id: d.id, ...x, kickoffMs: ms(x.kickoffTime) }); });
     const predsArr = [];   predsSnap.forEach(d => predsArr.push(d.data()));
     const koArr = [];      koSnap.forEach(d => koArr.push(d.data()));
 

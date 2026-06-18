@@ -11,13 +11,18 @@ import { resolveFullBracket, MATCH_STAGE } from './bracket.js';
 
 // Recebe arrays simples (vindos dos snapshots) e devolve as linhas do ranking
 // já ordenadas: [{ uid, name, points, exact }].
-//  usersArr:   [{ uid, displayName }]
-//  matchesArr: [{ id, stage, status, homeScore, awayScore, homeTeam, awayTeam, winner }]
+//  usersArr:   [{ uid, displayName, scoreFromMs? }]  // scoreFromMs: só pontua jogos
+//                com início >= esse instante (epoch ms); null/ausente = pontua tudo.
+//  matchesArr: [{ id, stage, status, homeScore, awayScore, homeTeam, awayTeam, winner, kickoffMs? }]
 //  predsArr:   [{ uid, matchId, homeScore, awayScore }]
 //  koArr:      [{ uid, matchNum, homeScore, awayScore, winner, homeTeam?, awayTeam? }]
 export function computeRanking(usersArr, matchesArr, predsArr, koArr) {
   const users = new Map();
-  for (const u of usersArr) users.set(u.uid, { name: u.displayName || 'Sem nome', points: 0, exact: 0 });
+  const scoreFrom = new Map(); // uid -> instante (ms) a partir do qual pontua
+  for (const u of usersArr) {
+    users.set(u.uid, { name: u.displayName || 'Sem nome', points: 0, exact: 0 });
+    if (u.scoreFromMs != null) scoreFrom.set(u.uid, u.scoreFromMs);
+  }
 
   // jogos finalizados: grupos por id; mata-mata real agrupado por fase
   const finishedGroup = new Map();
@@ -51,9 +56,11 @@ export function computeRanking(usersArr, matchesArr, predsArr, koArr) {
   for (const [uid, gp] of groupPredsByUid) {
     const u = users.get(uid);
     if (!u) continue;
+    const sf = scoreFrom.get(uid);
     for (const [matchId, pred] of gp) {
       const m = finishedGroup.get(matchId);
       if (!m) continue;
+      if (sf != null && m.kickoffMs != null && m.kickoffMs < sf) continue; // antes da data de início
       if (sign(pred.home - pred.away) === sign(m.homeScore - m.awayScore)) u.points++;
       if (pred.home === m.homeScore && pred.away === m.awayScore) u.exact++;
     }
@@ -63,6 +70,7 @@ export function computeRanking(usersArr, matchesArr, predsArr, koArr) {
   for (const [uid, kp] of koPredsByUid) {
     const u = users.get(uid);
     if (!u || !kp.size) continue;
+    const sf = scoreFrom.get(uid);
     const resolved = resolveFullBracket(kp);
     for (const [matchNum, pred] of kp) {
       const teams = resolved.get(matchNum);
@@ -71,6 +79,7 @@ export function computeRanking(usersArr, matchesArr, predsArr, koArr) {
       if (!realList) continue;
       const real = findPair(realList, teams.home, teams.away);
       if (!real) continue;
+      if (sf != null && real.kickoffMs != null && real.kickoffMs < sf) continue; // antes da data de início
       const userAdv = pred.winner === 'home' ? teams.home : teams.away;
       const realAdv = advancerOf(real);
       if (realAdv && userAdv === realAdv) u.points++;

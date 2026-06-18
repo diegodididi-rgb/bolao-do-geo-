@@ -4,6 +4,9 @@ on:
   schedule:
     # 16h, 19h, 22h e 00h em Brasília (UTC-3) = 19h, 22h, 01h, 03h UTC.
     - cron: "0 19,22,1,3 * * *"
+    # 04h30 Brasília = 07h30 UTC — logo após a cota gratuita do Firestore zerar
+    # (meia-noite do Pacífico = ~4h Brasília), pra recuperar dias em que ela estourou.
+    - cron: "30 7 * * *"
   workflow_dispatch: {}   # permite rodar manualmente pelo botão "Run workflow"
 
 jobs:
