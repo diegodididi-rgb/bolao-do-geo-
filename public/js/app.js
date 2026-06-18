@@ -8,6 +8,11 @@ import { renderReal } from './real.js';
 import { renderRanking } from './ranking.js';
 import { renderAdmin } from './admin.js';
 
+// Interruptor da aba Ranking. Coloque false para escondê-la temporariamente
+// (ex.: enquanto o ranking ainda não foi recalculado). Volte para true + deploy
+// para reativar.
+const RANKING_ENABLED = false;
+
 let currentUser = null;
 let isAdmin = false;
 
@@ -17,7 +22,8 @@ const authView    = document.getElementById('authView');
 const nav         = document.getElementById('mainNav');
 const userBox     = document.getElementById('userBox');
 const userName    = document.getElementById('userName');
-const adminTabBtn = document.getElementById('adminTabBtn');
+const adminTabBtn   = document.getElementById('adminTabBtn');
+const rankingTabBtn = document.getElementById('rankingTabBtn');
 
 const VIEWS = ['gruposView', 'mataView', 'realView', 'rankingView', 'adminView'];
 
@@ -49,11 +55,13 @@ onAuthStateChanged(auth, async (user) => {
   nav.classList.remove('hidden');
   userBox.classList.remove('hidden');
   adminTabBtn.classList.toggle('hidden', !isAdmin);
+  rankingTabBtn.classList.toggle('hidden', !RANKING_ENABLED);
   setTab('grupos');
 });
 
 function setTab(tab) {
   if (tab === 'admin' && !isAdmin) tab = 'grupos';
+  if (tab === 'ranking' && !RANKING_ENABLED) tab = 'grupos';
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   hideAllViews();
   if (tab === 'grupos')  { const v = show('gruposView');  renderGroups(v, currentUser); }
