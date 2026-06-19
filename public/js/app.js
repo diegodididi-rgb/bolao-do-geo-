@@ -11,7 +11,7 @@ import { renderAdmin } from './admin.js';
 // Interruptor da aba Ranking. Coloque false para escondê-la temporariamente
 // (ex.: enquanto o ranking ainda não foi recalculado). Volte para true + deploy
 // para reativar.
-const RANKING_ENABLED = false;
+const RANKING_ENABLED = true;
 
 let currentUser = null;
 let isAdmin = false;
