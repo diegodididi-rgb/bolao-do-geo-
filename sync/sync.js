@@ -106,13 +106,14 @@ async function main() {
 
   console.log(`OK: ${total} jogos gravados/atualizados | ${fixed.size} override(s) preservado(s).`);
 
-  await recomputeRanking();
+  await recomputeDerived();
 }
 
-// Recalcula o ranking e salva num ÚNICO doc (rankings/current). Assim o app lê
-// 1 documento por abertura, em vez de varrer todas as coleções (economia enorme
-// de leituras no plano gratuito). Reusa o cálculo puro de scoring.js.
-async function recomputeRanking() {
+// Gera os 2 documentos "derivados" que o app lê (em vez de varrer coleções):
+//  - snapshots/matches : os 104 jogos num único doc (app lê 1 leitura, não 104)
+//  - rankings/current  : o ranking já calculado (1 leitura, não 4 coleções)
+// Economia enorme de leituras no plano gratuito. Reusa o cálculo de scoring.js.
+async function recomputeDerived() {
   try {
     const { computeRanking } = await import(new URL('../public/js/scoring.js', import.meta.url).href);
     const [usersSnap, matchesSnap, predsSnap, koSnap] = await Promise.all([
@@ -127,6 +128,16 @@ async function recomputeRanking() {
     const predsArr = [];   predsSnap.forEach(d => predsArr.push(d.data()));
     const koArr = [];      koSnap.forEach(d => koArr.push(d.data()));
 
+    // snapshot dos jogos (ordenado por horário, como o app espera)
+    const matchesSorted = [...matchesArr].sort((a, b) => (a.kickoffMs ?? 0) - (b.kickoffMs ?? 0));
+    await db.collection('snapshots').doc('matches').set({
+      matches: matchesSorted,
+      count: matchesSorted.length,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    console.log(`Snapshot dos jogos salvo: ${matchesSorted.length} jogos.`);
+
+    // ranking pré-calculado
     const rows = computeRanking(usersArr, matchesArr, predsArr, koArr);
     await db.collection('rankings').doc('current').set({
       rows,
@@ -135,8 +146,8 @@ async function recomputeRanking() {
     });
     console.log(`Ranking recalculado e salvo: ${rows.length} participante(s).`);
   } catch (e) {
-    // não falha o sync inteiro só porque o ranking não pôde ser recalculado
-    console.error('Aviso: não foi possível recalcular o ranking:', e.message);
+    // não falha o sync inteiro só porque os derivados não puderam ser gerados
+    console.error('Aviso: não foi possível gerar snapshot/ranking:', e.message);
   }
 }
 

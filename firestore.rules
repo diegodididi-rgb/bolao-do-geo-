@@ -36,6 +36,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Snapshot dos jogos (1 doc: snapshots/matches) — o app lê esse doc em vez
+    // de varrer a coleção `matches` (104 leituras). Logados leem; só o sync escreve.
+    match /snapshots/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
     // Palpites: leitura por logados (o ranking precisa somar todos).
     // Criação: só o dono, dados válidos, em QUALQUER jogo (inclusive os que já
     // aconteceram — os palpites foram feitos antes, no papel).

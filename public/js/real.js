@@ -1,9 +1,8 @@
 // Aba "Copa do Mundo" — a REALIDADE: classificações reais dos grupos + jogos e
 // chaveamento reais (preenchidos pela API). Somente leitura.
-import { db } from './firebase-config.js';
-import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { computeGroupStandings } from './standings.js';
 import { translateTeam } from './teams.js';
+import { loadMatches } from './matchesData.js';
 
 const STAGE_LABELS = {
   LAST_32: '16-avos de final',
@@ -19,8 +18,7 @@ export async function renderReal(container) {
   container.innerHTML = '<p class="loading">Carregando a Copa…</p>';
   let matches;
   try {
-    const snap = await getDocs(query(collection(db, 'matches'), orderBy('kickoffTime')));
-    matches = []; snap.forEach(d => matches.push({ id: d.id, ...d.data() }));
+    matches = await loadMatches();
   } catch (e) {
     container.innerHTML = `<p class="empty">Erro ao carregar: ${e.message}</p>`;
     return;

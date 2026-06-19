@@ -1,12 +1,11 @@
 // Lista de jogos + entrada de palpites
 // Regras de uso: pode palpitar em QUALQUER jogo (inclusive já encerrados, pois os
 // palpites foram feitos antes no papel). Cada palpite é WRITE-ONCE: salvou, não edita.
-import { db } from './firebase-config.js';
-import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { loadUserPredictions, savePrediction } from './predictions.js';
 import { loadUserKoPredictions, saveKoPrediction } from './koPredictions.js';
 import { ROUND_LABELS, resolveFullBracket, R32_MATCHES } from './bracket.js';
 import { translateTeam } from './teams.js';
+import { loadMatches } from './matchesData.js';
 
 // Jogos de abertura — palpite BLOQUEADO (ids da football-data):
 // 537327 = México x África do Sul · 537328 = Coreia do Sul x R. Tcheca
@@ -24,11 +23,11 @@ export async function renderGroups(container, user) {
   container.innerHTML = '<p class="loading">Carregando jogos…</p>';
   let matches, preds;
   try {
-    const [snap, p] = await Promise.all([
-      getDocs(query(collection(db, 'matches'), orderBy('kickoffTime'))),
+    const [m, p] = await Promise.all([
+      loadMatches(),
       loadUserPredictions(user.uid),
     ]);
-    matches = []; snap.forEach(d => matches.push({ id: d.id, ...d.data() }));
+    matches = m;
     preds = p;
   } catch (e) {
     container.innerHTML = `<p class="empty">Erro ao carregar jogos: ${e.message}</p>`;
@@ -71,11 +70,11 @@ export async function renderKnockout(container, user) {
   container.innerHTML = '<p class="loading">Carregando…</p>';
   let matches, koPreds;
   try {
-    const [snap, kp] = await Promise.all([
-      getDocs(query(collection(db, 'matches'), orderBy('kickoffTime'))),
+    const [m, kp] = await Promise.all([
+      loadMatches(),
       loadUserKoPredictions(user.uid),
     ]);
-    matches = []; snap.forEach(d => matches.push({ id: d.id, ...d.data() }));
+    matches = m;
     koPreds = kp;
   } catch (e) {
     container.innerHTML = `<p class="empty">Erro ao carregar: ${e.message}</p>`;

@@ -1,10 +1,11 @@
 // Tela de Admin — (1) override manual de placar e (2) ver palpites dos participantes.
 import { db } from './firebase-config.js';
 import {
-  collection, getDocs, query, orderBy, doc, updateDoc, serverTimestamp
+  collection, getDocs, doc, updateDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { translateTeam } from './teams.js';
 import { resolveFullBracket, ROUND_LABELS, MATCH_STAGE } from './bracket.js';
+import { loadMatches } from './matchesData.js';
 
 const STAGE_TO_ROUND = {
   LAST_32: 'R32', LAST_16: 'R16', QUARTER_FINALS: 'QF',
@@ -13,10 +14,10 @@ const STAGE_TO_ROUND = {
 
 export async function renderAdmin(container) {
   container.innerHTML = '<p class="loading">Carregando…</p>';
-  let matches, usersSnap, predsSnap, koSnap;
+  let matchList, usersSnap, predsSnap, koSnap;
   try {
-    [matches, usersSnap, predsSnap, koSnap] = await Promise.all([
-      getDocs(query(collection(db, 'matches'), orderBy('kickoffTime'))),
+    [matchList, usersSnap, predsSnap, koSnap] = await Promise.all([
+      loadMatches(),
       getDocs(collection(db, 'users')),
       getDocs(collection(db, 'predictions')),
       getDocs(collection(db, 'koPredictions')),
@@ -25,7 +26,6 @@ export async function renderAdmin(container) {
     container.innerHTML = `<p class="empty">Erro: ${e.message}</p>`;
     return;
   }
-  const matchList = []; matches.forEach(d => matchList.push({ id: d.id, ...d.data() }));
   if (!matchList.length) {
     container.innerHTML = '<p class="empty">Sem jogos. Rode o sincronizador.</p>';
     return;
